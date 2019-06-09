@@ -1,0 +1,7 @@
+EVAL1A BOARD
+M:	C. Hediger <info@databyte.ch>
+S:	Maintained
+F:	board/databyte.ch/eval1a/
+F:	include/configs/mx6ullevk.h
+F:	configs/mx6ull_14x14_evk_defconfig
+F:	configs/mx6ull_14x14_evk_plugin_defconfig
