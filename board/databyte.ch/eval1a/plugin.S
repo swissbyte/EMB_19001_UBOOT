@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0+ */
 /*
- * Copyright (C) 2019 C.Hediger databyte.ch
+ * (C) Copyright 2016 Freescale Semiconductor, Inc.
  */
 
 #include <config.h>
