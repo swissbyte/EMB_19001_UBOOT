@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (C) 2016 Freescale Semiconductor, Inc.
+ * Copyright (C) 2019 C. Hediger, databyte.ch
  */
 
 #include <asm/arch/clock.h>
@@ -17,8 +17,13 @@
 #include <fsl_esdhc.h>
 #include <linux/sizes.h>
 #include <mmc.h>
+#include <netdev.h>
+#include <miiphy.h>
+//#include <micrel_ksz8xxx.h>
 
 DECLARE_GLOBAL_DATA_PTR;
+
+int dbgMsg(const char* FuncName, int line, const char* message);
 
 #define UART_PAD_CTRL  (PAD_CTL_PKE | PAD_CTL_PUE |		\
 	PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_MED |		\
@@ -31,6 +36,11 @@ DECLARE_GLOBAL_DATA_PTR;
 #define ENET_PAD_CTRL  (PAD_CTL_PKE | PAD_CTL_PUE |             \
 	PAD_CTL_PUS_100K_UP | PAD_CTL_SPEED_MED   |             \
 	PAD_CTL_DSE_40ohm   | PAD_CTL_HYS)
+
+#define MDIO_PAD_CTRL  (PAD_CTL_PUS_100K_UP | PAD_CTL_PUE |     \
+	PAD_CTL_DSE_48ohm   | PAD_CTL_SRE_FAST | PAD_CTL_ODE)
+
+#define IO_PAD_CTRL  (PAD_CTL_DSE_40ohm   | PAD_CTL_SRE_FAST)
 
 #define ETH_PHY_POWER	IMX_GPIO_NR(4, 10)
 
@@ -65,8 +75,32 @@ static iomux_v3_cfg_t const fec_pads[] = {
 	MX6_PAD_ENET1_TX_EN__ENET1_TX_EN | MUX_PAD_CTRL(ENET_PAD_CTRL),
 	MX6_PAD_ENET1_TX_DATA0__ENET1_TDATA00 | MUX_PAD_CTRL(ENET_PAD_CTRL),
 	MX6_PAD_ENET1_TX_DATA1__ENET1_TDATA01 | MUX_PAD_CTRL(ENET_PAD_CTRL),
-	MX6_PAD_ENET1_TX_CLK__ENET1_REF_CLK1 | MUX_PAD_CTRL(ENET_PAD_CTRL),
+	MX6_PAD_ENET1_TX_CLK__ENET1_REF_CLK1 | MUX_PAD_CTRL(ENET_PAD_CTRL), //Oder Ref clock???
+	MX6_PAD_GPIO1_IO06__ENET1_MDIO | MUX_PAD_CTRL(ENET_PAD_CTRL),
+	MX6_PAD_GPIO1_IO07__ENET1_MDC | MUX_PAD_CTRL(ENET_PAD_CTRL),
 };
+
+
+volatile uint32_t *GPIO1_DIR = (volatile uint32_t *)0x209C004;
+volatile uint32_t *GPIO1_DAT = (volatile uint32_t *)0x209C000;
+volatile uint32_t *IOMUX_GP1_00 = (volatile uint32_t *)0x20E02E8;
+
+volatile uint32_t *SWPAD_ENET_RXEN = (volatile uint32_t *)0x20E00CC;
+volatile uint32_t *SWPAD_ENET_RXD1 = (volatile uint32_t *)0x20E00C8;
+
+volatile uint32_t *SWPAD_ENET_RXEN_CTL = (volatile uint32_t *)0x20E0358;
+volatile uint32_t *SWPAD_ENET_RXD1_CTL = (volatile uint32_t *)0x20E0354;
+
+volatile uint32_t *GPIO2_DIR = (volatile uint32_t *)0x20A0004;
+volatile uint32_t *GPIO2_DAT = (volatile uint32_t *)0x20A0000;
+
+
+#define LED_H *GPIO1_DAT = (uint32_t)0x01;
+#define LED_L *GPIO1_DAT = (uint32_t)0x00;
+
+volatile uint32_t *IOMUXC_GPR_GPR1 = (volatile uint32_t *)0x020E4004;
+
+//#define DEBUG
 
 
 static void setup_iomux_uart(void)
@@ -74,29 +108,42 @@ static void setup_iomux_uart(void)
 	imx_iomux_v3_setup_multiple_pads(uart1_pads, ARRAY_SIZE(uart1_pads));
 }
 
+void delay_ms(uint16_t delay)
+{
+	while(delay--)
+	{
+		udelay(1000);
+	}
+}
+
 static void setup_iomux_fec(void)
 {
-	imx_iomux_v3_setup_multiple_pads(fec_pads, ARRAY_SIZE(fec_pads));
+
+	//Setze PHYCONF2 und ADDR2 auf 0.
+	// Damit ist die PhyAddr: 010 = 2
+	*SWPAD_ENET_RXD1 = 0x05;
+	*SWPAD_ENET_RXEN = 0x05;
+
+	*SWPAD_ENET_RXD1_CTL = 0x38;
+	*SWPAD_ENET_RXEN_CTL = 0x38;
+
+	*GPIO2_DIR |= 0x05; //Bit 0 and 2
 
 	/* Reset KSZ8041 PHY */
 	gpio_request(ETH_PHY_POWER, "eth_pwr");
 	gpio_direction_output(ETH_PHY_POWER , 1);
-	udelay(15000);
+	udelay(1);
+	gpio_set_value(ETH_PHY_POWER, 0);
+	dbgMsg(__FUNCTION__,__LINE__,"chip is now in reset");
+	delay_ms(2000);
+	gpio_set_value(ETH_PHY_POWER, 1);
+	dbgMsg(__FUNCTION__,__LINE__,"Reset released");
+	udelay(5);
+
+	imx_iomux_v3_setup_multiple_pads(fec_pads, ARRAY_SIZE(fec_pads));
 }
 
-/*
- * Initializes on-chip ethernet controllers.
- * to override, implement board_eth_init()
- */
-#if defined(CONFIG_FEC_MXC)
-//extern int fecmxc_initialize(bd_t *bis);
-#endif
 
-/*
-int fecmxc_initialize(bd_t *bis)
-{
-	return 0;
-} */
 
 int board_mmc_get_env_dev(int devno)
 {
@@ -115,33 +162,93 @@ int board_early_init_f(void)
 	return 0;
 }
 
-#ifdef CONFIG_FEC_MXC
+int dbgMsg(const char* FuncName, int line, const char* message)
+{
+	#ifdef DEBUG
+	char lineNumber[10];
+	sprintf(lineNumber, "%d", line);
+
+	puts("dbg in ");
+	puts(FuncName);
+	puts(" @ ");
+	puts(lineNumber);
+	puts(": ");
+	puts(message);
+	puts("\n");
+	#endif
+
+	return 0;
+}
+
+int board_phy_config(struct phy_device *phydev)
+{
+
+
+	phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x8190);
+
+	if (phydev->drv->config)
+		phydev->drv->config(phydev);
+
+	phy_startup(phydev);
+
+	//Initialize ksz8xxx PHY
+	phy_micrel_ksz8xxx_init();
+
+
+	dbgMsg(__func__,__LINE__,"try startup dev");
+
+	return 0;
+}
+
+
 int board_eth_init(bd_t *bis)
 {
-	setup_iomux_fec();
 
+	//Pad K13 als Ausgang definieren im IOMUX
+	*IOMUX_GP1_00 |= (uint32_t)0x08;
+	//GPIO1.00 als Ausgang im GPIO Register definieren
+	*GPIO1_DIR |= (uint32_t)0x01;
+
+	dbgMsg(__FUNCTION__,__LINE__,"initialise feccmxc ");
+
+	//dbgMsg(__FUNCTION__,__LINE__,bis->bi_enetaddr);
+
+	fecmxc_initialize(bis);
+
+	LED_L;
 	return 0; //cpu_eth_init(bis);
 }
+
 
 static int setup_fec(void)
 {
 	struct iomuxc *iomuxc_regs = (struct iomuxc *)IOMUXC_BASE_ADDR;
 
-	/* clear gpr1[14], gpr1[18:17] to select anatop clock */
-	clrsetbits_le32(&iomuxc_regs->gpr[1], IOMUX_GPR1_FEC_MASK, 0);
+	//ENET1 TX reference clock driven by ref_enetpll. This clock is also output to pins via the IOMUX.
+	//ENET_REF_CLK1 function.
+	clrsetbits_le32(&iomuxc_regs->gpr[1], BIT(13), 0);
 
-	return enable_fec_anatop_clock(0, ENET_50MHZ);
+	//ENET1_TX_CLK output driver is enabled when configured for ALT1
+	clrsetbits_le32(&iomuxc_regs->gpr[1], BIT(17), 1);
+
+	enable_fec_anatop_clock(0, ENET_50MHZ);
+	enable_enet_clk(1);
+
+	//phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x8190);
+
+	return 0;
 }
-#endif
+
 
 int board_init(void)
 {
 	/* Address of boot parameters */
 	gd->bd->bi_boot_params = PHYS_SDRAM + 0x100;
 
-#ifdef	CONFIG_FEC_MXC
+
+
+	setup_iomux_fec();
 	setup_fec();
-#endif
 
 	return 0;
 }
@@ -166,6 +273,8 @@ int board_late_init(void)
 	env_set("board_name", "EVAL");
 	env_set("board_rev", "1A");
 #endif
+
+	*IOMUXC_GPR_GPR1 = (uint32_t) 0x0F420005;
 
 	return 0;
 }
@@ -205,7 +314,13 @@ int board_mmc_init(bd_t *bis)
 
 int checkboard(void)
 {
-	puts("Board: DTB iMX6 eval 1a\n");
+	puts("Board: DTB iMX6 eval 1a \n");
+
+	#ifdef DEBUG
+	puts("Build time: ");
+	puts(__TIME__);
+	puts("\n");
+	#endif
 
 	return 0;
 }
