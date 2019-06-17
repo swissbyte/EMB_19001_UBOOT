@@ -199,6 +199,7 @@ config TARGET_EMBESTMX6BOARDS
 config TARGET_EVAL1A
 	bool "Databyte eval1a"
 	select BOARD_LATE_INIT
+	#select DM_MMC
 	select MX6ULL
 
 config TARGET_GE_BX50V3
