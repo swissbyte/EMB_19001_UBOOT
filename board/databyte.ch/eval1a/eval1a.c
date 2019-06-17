@@ -94,6 +94,8 @@ volatile uint32_t *SWPAD_ENET_RXD1_CTL = (volatile uint32_t *)0x20E0354;
 volatile uint32_t *GPIO2_DIR = (volatile uint32_t *)0x20A0004;
 volatile uint32_t *GPIO2_DAT = (volatile uint32_t *)0x20A0000;
 
+volatile uint32_t *UART1_TXD = (volatile uint32_t *)0x2020040;
+
 
 #define LED_H *GPIO1_DAT = (uint32_t)0x01;
 #define LED_L *GPIO1_DAT = (uint32_t)0x00;
@@ -214,8 +216,10 @@ int board_eth_init(bd_t *bis)
 	//dbgMsg(__FUNCTION__,__LINE__,bis->bi_enetaddr);
 
 	fecmxc_initialize(bis);
+	*UART1_TXD = 'A';
 
 	LED_L;
+	delay_ms(1000);
 	return 0; //cpu_eth_init(bis);
 }
 
@@ -231,6 +235,7 @@ static int setup_fec(void)
 	//ENET1_TX_CLK output driver is enabled when configured for ALT1
 	clrsetbits_le32(&iomuxc_regs->gpr[1], BIT(17), 1);
 
+	*UART1_TXD = 'B';
 	enable_fec_anatop_clock(0, ENET_50MHZ);
 	enable_enet_clk(1);
 
@@ -246,10 +251,17 @@ int board_init(void)
 	gd->bd->bi_boot_params = PHYS_SDRAM + 0x100;
 
 
-
+	setup_iomux_uart();
 	setup_iomux_fec();
 	setup_fec();
 
+	LED_H;
+	*UART1_TXD = 'C';
+	delay_ms(1000);
+	LED_L;
+	*UART1_TXD = 'D';
+	delay_ms(1500);
+	LED_H;
 	return 0;
 }
 
@@ -275,7 +287,7 @@ int board_late_init(void)
 #endif
 
 	*IOMUXC_GPR_GPR1 = (uint32_t) 0x0F420005;
-
+	*UART1_TXD = 'E';
 	return 0;
 }
 
@@ -315,6 +327,7 @@ int board_mmc_init(bd_t *bis)
 int checkboard(void)
 {
 	puts("Board: DTB iMX6 eval 1a \n");
+	*UART1_TXD = 'A';
 
 	#ifdef DEBUG
 	puts("Build time: ");
