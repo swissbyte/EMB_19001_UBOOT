@@ -7,22 +7,11 @@
 #define CONFIG_MXC_UART
 #endif
 
-/*
-#define CONFIG_SPL
-#define CONFIG_SPL_BUILD
-#define CONFIG_SPL_FRAMEWORK
-#define CONFIG_SYS_ONENAND_BASE 0x4E000000
-#define CONFIG_SPL_TEXT_BASE 0x0
-#define CONFIG_SPL_SKIP_RELOCATE
-#define CONFIG_SPL_SERIAL_SUPPORT
-*/
-
 #define CONFIG_ENV_SIZE			SZ_8K
 #define CONFIG_ENV_OFFSET		(12 * SZ_64K)
 
 #define CONFIG_MXC_UART_BASE	UART1_BASE
 
-//#define CONFIG_FEC_MXC
 #define IMX_FEC_BASE			ENET_BASE_ADDR
 #define CONFIG_FEC_ENET_DEV		1
 #define CONFIG_FEC_MXC_PHYADDR  0x2
@@ -38,13 +27,6 @@
 #define PHYS_SDRAM_SIZE	SZ_256M
 
 #define CONFIG_SYS_MALLOC_LEN		(16 * SZ_1M)
-
-#ifdef CONFIG_ENABLE_MMU
-   //#define CONFIG_SYS_MAPPED_RAM_BASE    0xc0000000
-#endif
-
-
-
 
 
 /* Physical Memory Map */
@@ -66,5 +48,14 @@
 #define CONFIG_SYS_INIT_SP_ADDR \
 	(CONFIG_SYS_INIT_RAM_ADDR + CONFIG_SYS_INIT_SP_OFFSET)
 
+#define CONFIG_BOOTCOMMAND	"run main_boot"
+
+#define CONFIG_EXTRA_ENV_SETTINGS					\
+	"setenv bootdelay 3\0"						\
+	"main_boot="							\
+		"setenv bootargs console=ttymxc0,115200n8 earlyprintk root=/dev/mmcblk0p1 rootwait rw;" \
+		"ext4load mmc 0:1 0x80001000 /boot/imx6ull-dtb-eval1a.dtb; "			\
+		"ext4load mmc 0:1 0x82000000 /boot/zImage; "			\
+		"bootz 0x82000000 - 0x80001000\0"				\
 
 #endif

@@ -137,10 +137,10 @@ static void setup_iomux_fec(void)
 	udelay(1);
 	gpio_set_value(ETH_PHY_POWER, 0);
 	dbgMsg(__FUNCTION__,__LINE__,"chip is now in reset");
-	delay_ms(2000);
+	delay_ms(5);
 	gpio_set_value(ETH_PHY_POWER, 1);
 	dbgMsg(__FUNCTION__,__LINE__,"Reset released");
-	udelay(5);
+	delay_ms(5);
 
 	imx_iomux_v3_setup_multiple_pads(fec_pads, ARRAY_SIZE(fec_pads));
 }
@@ -184,8 +184,6 @@ int dbgMsg(const char* FuncName, int line, const char* message)
 
 int board_phy_config(struct phy_device *phydev)
 {
-
-
 	phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x8190);
 
 	if (phydev->drv->config)
@@ -196,31 +194,23 @@ int board_phy_config(struct phy_device *phydev)
 	//Initialize ksz8xxx PHY
 	phy_micrel_ksz8xxx_init();
 
-
 	dbgMsg(__func__,__LINE__,"try startup dev");
-
 	return 0;
 }
 
 
 int board_eth_init(bd_t *bis)
 {
-
 	//Pad K13 als Ausgang definieren im IOMUX
 	*IOMUX_GP1_00 |= (uint32_t)0x08;
 	//GPIO1.00 als Ausgang im GPIO Register definieren
 	*GPIO1_DIR |= (uint32_t)0x01;
 
 	dbgMsg(__FUNCTION__,__LINE__,"initialise feccmxc ");
-
-	//dbgMsg(__FUNCTION__,__LINE__,bis->bi_enetaddr);
-
 	fecmxc_initialize(bis);
-	*UART1_TXD = 'A';
-
 	LED_L;
-	delay_ms(1000);
-	return 0; //cpu_eth_init(bis);
+
+	return 0;
 }
 
 
@@ -235,18 +225,16 @@ static int setup_fec(void)
 	//ENET1_TX_CLK output driver is enabled when configured for ALT1
 	clrsetbits_le32(&iomuxc_regs->gpr[1], BIT(17), 1);
 
-	*UART1_TXD = 'B';
+	//*UART1_TXD = 'B';
 	enable_fec_anatop_clock(0, ENET_50MHZ);
 	enable_enet_clk(1);
-
-	//phy_write(phydev, MDIO_DEVAD_NONE, 0x1f, 0x8190);
-
 	return 0;
 }
 
 
 int board_init(void)
 {
+
 	/* Address of boot parameters */
 	gd->bd->bi_boot_params = PHYS_SDRAM + 0x100;
 
@@ -255,13 +243,14 @@ int board_init(void)
 	setup_iomux_fec();
 	setup_fec();
 
+	/*
 	LED_H;
 	*UART1_TXD = 'C';
 	delay_ms(1000);
 	LED_L;
 	*UART1_TXD = 'D';
 	delay_ms(1500);
-	LED_H;
+	LED_H;*/
 	return 0;
 }
 
@@ -303,15 +292,6 @@ static struct fsl_esdhc_cfg usdhc_cfg[1] = {
 
 int board_mmc_init(bd_t *bis)
 {
-	//struct src *src_regs = (struct src *)SRC_BASE_ADDR;
-	//u32 val;
-	//u32 port;
-
-	//val = readl(&src_regs->sbmr1);
-
-	/* Boot from USDHC */
-	//port = (val >> 11) & 0x3;
-
 	imx_iomux_v3_setup_multiple_pads(usdhc1_pads,
 					 ARRAY_SIZE(usdhc1_pads));
 	//gpio_direction_input(USDHC1_CD_GPIO);
@@ -323,11 +303,20 @@ int board_mmc_init(bd_t *bis)
 }
 
 
-
 int checkboard(void)
 {
-	puts("Board: DTB iMX6 eval 1a \n");
-	*UART1_TXD = 'A';
+	//Workaround to "activate" the UART for output.
+	*UART1_TXD = ' ';
+	delay_ms(1);
+	*UART1_TXD = ' ';
+	delay_ms(1);
+	*UART1_TXD = ' ';
+	delay_ms(1);
+
+
+	puts("\nBoard: DTB iMX6 eval 1a \n");
+	puts("Bootloader v1.01 \n");
+	puts("check out databyte.ch\n");
 
 	#ifdef DEBUG
 	puts("Build time: ");
